@@ -202,6 +202,8 @@ em { font-style: normal; color: var(--accent); }
 .cfg-dim { position: absolute; left: 0; top: 0; z-index: 2; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: rgba(15, 26, 43, 0.78); color: #fff; border: 1px solid var(--line-dark); pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cfg-tools { position: absolute; z-index: 3; left: 14px; right: 14px; bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cfg-hint { position: absolute; z-index: 2; top: 14px; left: 16px; right: 16px; font-size: 0.8rem; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 6px rgba(15, 26, 43, 0.7); pointer-events: none; }
+.cfg-view { position: absolute; z-index: 3; top: 12px; right: 12px; }
+.cfg-hint { max-width: calc(100% - 210px); }
 .cfg-fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 30px; text-align: center; color: var(--muted-dark); }
 
 .seg { display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(15, 26, 43, 0.78); border: 1px solid var(--line-dark); backdrop-filter: blur(8px); }
@@ -234,6 +236,16 @@ em { font-style: normal; color: var(--accent); }
 .lines li { display: flex; justify-content: space-between; gap: 14px; }
 .lines li span:last-child { color: #fff; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .summary-note { font-size: 0.78rem; color: var(--muted-dark); line-height: 1.4; }
+
+/* Перетин профілю, комплектація, приглушений блок */
+.section-wrap { margin-top: 14px; padding: 12px 14px 6px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-dark); }
+.section-svg { max-width: 100%; height: auto; }
+.extras { display: grid; gap: 10px; }
+.extra { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.extra > span { font-size: 0.92rem; font-weight: 600; }
+.extra .chip { padding: 7px 13px; font-size: 0.85rem; }
+.opt.dim .swatch { opacity: 0.6; }
+.opt.dim .swatch:hover { opacity: 1; }
 
 /* ============ Prices ============ */
 .ptabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -342,6 +354,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
   .hero-stats { gap: 22px 28px; }
   .hw-chip { display: none; }
   .cfg-panel { padding: 18px; }
+  .cfg-hint { max-width: calc(100% - 190px); }
   .seg button { padding: 7px 11px; font-size: 0.8rem; }
   .cfg-tools { left: 10px; right: 10px; bottom: 10px; }
   .size { grid-template-columns: 56px 1fr 88px; gap: 10px; }

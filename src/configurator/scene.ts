@@ -1,11 +1,28 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { COLORS, PROFILES, layoutOf, type ColorDef, type Config, type FillingKind, type GlassId, type SectionKind } from '../../shared/catalog';
+import {
+  COLORS,
+  PRODUCTS,
+  effectiveSections,
+  glazingOf,
+  layoutOf,
+  profileOf,
+  type CoatingId,
+  type ColorDef,
+  type Config,
+  type FillingKind,
+  type SectionKind,
+} from '../../shared/catalog';
 
 export type OpenMode = 'closed' | 'open' | 'tilt';
+/** Звідки дивимось: із кімнати або з вулиці. */
+export type ViewSide = 'inside' | 'outside';
 
-/** Усі розміри в сцені — у метрах. Вісь +Z дивиться на глядача (кімната), -Z — вулиця. */
+/**
+ * Усі розміри в сцені — у метрах.
+ * Вісь +Z дивиться в кімнату (глядач «зсередини»), -Z — на вулицю.
+ */
 
 // ---------- Геометричні допоміжні функції ----------
 
@@ -56,14 +73,29 @@ function innerHole(w: number, h: number, f: number, arch: boolean): THREE.Path {
   return p;
 }
 
-function extrude(shape: THREE.Shape, depth: number): THREE.ExtrudeGeometry {
+/**
+ * Видавлює контур по Z (центр у 0).
+ * sided=true розбиває торці на дві групи: 0 — вулиця (-Z), 1 — кімната (+Z), 2 — бічні грані,
+ * щоб профіль міг мати різний колір із двох боків.
+ */
+function extrude(shape: THREE.Shape, depth: number, sided = false): THREE.ExtrudeGeometry {
   const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 40 });
   g.translate(0, 0, -depth / 2);
+  if (sided) {
+    const [lids, ...rest] = g.groups;
+    if (lids) {
+      const half = lids.count / 2; // спочатку нижня кришка (z=0 → вулиця), потім верхня
+      g.clearGroups();
+      g.addGroup(lids.start, half, 0);
+      g.addGroup(lids.start + half, half, 1);
+      rest.forEach((r) => g.addGroup(r.start, r.count, 2));
+    }
+  }
   return g;
 }
 
 /** Прямокутна рамка з центром в (0,0): зовнішній розмір w×h, товщина профілю t. */
-function rectFrameGeometry(w: number, h: number, t: number, depth: number): THREE.ExtrudeGeometry {
+function rectFrameGeometry(w: number, h: number, t: number, depth: number, sided = false): THREE.ExtrudeGeometry {
   const s = new THREE.Shape();
   s.moveTo(-w / 2, -h / 2);
   s.lineTo(w / 2, -h / 2);
@@ -79,7 +111,7 @@ function rectFrameGeometry(w: number, h: number, t: number, depth: number): THRE
   hole.lineTo(-iw, ih);
   hole.closePath();
   s.holes.push(hole);
-  return extrude(s, depth);
+  return extrude(s, depth, sided);
 }
 
 // ---------- Процедурні текстури ----------
@@ -140,13 +172,29 @@ function skyTexture(): THREE.CanvasTexture {
   return t;
 }
 
-// ---------- Матеріали скла ----------
+/** Дрібна сітка для москітної сітки (прозорий фон, тонкі лінії). */
+function netTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, 32, 32);
+  g.fillStyle = 'rgba(70,78,90,0.85)';
+  g.fillRect(0, 0, 32, 2.2);
+  g.fillRect(0, 0, 2.2, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
 
-const GLASS_LOOK: Record<GlassId, { color: string; opacity: number; roughness: number }> = {
-  double: { color: '#d7ebf7', opacity: 0.3, roughness: 0.04 },
-  triple: { color: '#cfe4f4', opacity: 0.38, roughness: 0.04 },
-  energy: { color: '#c9e6d6', opacity: 0.4, roughness: 0.05 },
-  matte: { color: '#eef3f5', opacity: 0.88, roughness: 0.6 },
+// ---------- Вигляд скла ----------
+
+const GLASS_LOOK: Record<CoatingId, { color: string; opacity: number; roughness: number }> = {
+  clear: { color: '#d7ebf7', opacity: 0.28, roughness: 0.04 },
+  energy: { color: '#c3e6d2', opacity: 0.36, roughness: 0.05 },
+  matte: { color: '#eef3f5', opacity: 0.8, roughness: 0.6 },
+  tinted: { color: '#8da3ae', opacity: 0.5, roughness: 0.04 },
 };
 
 interface Anim {
@@ -159,6 +207,12 @@ interface Anim {
   travel: number;
   door: boolean;
   canTilt: boolean;
+}
+
+interface DimInfo {
+  W: number;
+  H: number;
+  y0: number;
 }
 
 export class ConfiguratorScene {
@@ -175,25 +229,29 @@ export class ConfiguratorScene {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(35, 1, 0.1, 80);
   private controls: OrbitControls;
+  private sun!: THREE.DirectionalLight;
   private last = performance.now();
   private product = new THREE.Group();
-  private wall: THREE.Mesh | null = null;
-  private ceiling: THREE.Mesh | null = null;
+  private dims = new THREE.Group();
+  private extras: THREE.Mesh[] = [];
   private anims: Anim[] = [];
   private indicatorNodes: THREE.Object3D[] = [];
-  private dims = new THREE.Group();
   private mode: OpenMode = 'closed';
+  private view: ViewSide = 'inside';
   private cfg: Config | null = null;
+  private dimInfo: DimInfo | null = null;
   private lastKey = '';
   private fit = 3;
   private visible = true;
   private dirty = true;
   private size = { w: 1, h: 1 };
-  private frameMats = new Map<string, THREE.MeshStandardMaterial>();
-  private glassMats = new Map<GlassId, THREE.MeshPhysicalMaterial>();
+  private finishes = new Map<string, THREE.MeshStandardMaterial>();
+  private glassMats = new Map<CoatingId, THREE.MeshPhysicalMaterial>();
   private metal = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.95, roughness: 0.28 });
-  private dark = new THREE.MeshStandardMaterial({ color: '#2a2f36', roughness: 0.7 });
+  private spacer = new THREE.MeshStandardMaterial({ color: '#2b3038', roughness: 0.6 });
   private sillMat = new THREE.MeshStandardMaterial({ color: '#f2f2ef', roughness: 0.45 });
+  private netFrameMat = new THREE.MeshStandardMaterial({ color: '#d6d9dd', roughness: 0.6 });
+  private netMat: THREE.MeshStandardMaterial;
   private labelW: HTMLElement;
   private labelH: HTMLElement;
   private ro: ResizeObserver;
@@ -204,8 +262,8 @@ export class ConfiguratorScene {
     this.labelW = labelW;
     this.labelH = labelH;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     const small = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 700;
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, small ? 1.5 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -219,7 +277,15 @@ export class ConfiguratorScene {
     this.scene.environmentIntensity = 0.75;
     this.scene.background = new THREE.Color('#223250');
 
-    this.buildStaticWorld();
+    this.netMat = new THREE.MeshStandardMaterial({
+      map: netTexture(),
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      roughness: 1,
+    });
+
+    this.buildStaticWorld(small);
     this.scene.add(this.product, this.dims);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -228,9 +294,8 @@ export class ConfiguratorScene {
     this.controls.enablePan = false;
     this.controls.minPolarAngle = 1.05;
     this.controls.maxPolarAngle = 1.75;
-    this.controls.minAzimuthAngle = -1.05;
-    this.controls.maxAzimuthAngle = 1.05;
     this.controls.rotateSpeed = 0.7;
+    this.applyViewLimits();
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
@@ -260,6 +325,16 @@ export class ConfiguratorScene {
     this.dirty = true;
   }
 
+  setView(view: ViewSide): void {
+    if (view === this.view) return;
+    this.view = view;
+    this.sun.position.z = view === 'inside' ? 6 : -6;
+    this.applyViewLimits();
+    this.buildDims();
+    if (this.cfg) this.frameCamera(this.cfg, true);
+    this.dirty = true;
+  }
+
   resetView(): void {
     if (this.cfg) this.frameCamera(this.cfg, true);
   }
@@ -277,27 +352,35 @@ export class ConfiguratorScene {
 
   // ---------- Сцена ----------
 
-  private buildStaticWorld(): void {
-    const small = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 700;
-    const sun = new THREE.DirectionalLight('#fff4e0', 2.1);
-    sun.position.set(3.5, 6, 6);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
-    sun.shadow.camera.left = -5;
-    sun.shadow.camera.right = 5;
-    sun.shadow.camera.top = 5;
-    sun.shadow.camera.bottom = -3;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 20;
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.02;
-    this.scene.add(sun, new THREE.HemisphereLight('#dbe9ff', '#8a7f70', 0.5));
+  private buildStaticWorld(small: boolean): void {
+    this.sun = new THREE.DirectionalLight('#fff4e0', 2.1);
+    this.sun.position.set(3.5, 6, 6);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
+    this.sun.shadow.camera.left = -5;
+    this.sun.shadow.camera.right = 5;
+    this.sun.shadow.camera.top = 5;
+    this.sun.shadow.camera.bottom = -3;
+    this.sun.shadow.camera.near = 1;
+    this.sun.shadow.camera.far = 20;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.02;
+    this.scene.add(this.sun, new THREE.HemisphereLight('#dbe9ff', '#8a7f70', 0.5));
 
-    // Кімната: підлога
+    // Кімната: підлога, бокові та задня стіни
+    const roomMat = new THREE.MeshStandardMaterial({ color: '#d3ccbf', roughness: 1, side: THREE.DoubleSide });
     const floorIn = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), new THREE.MeshStandardMaterial({ color: '#b4a690', roughness: 0.8 }));
     floorIn.rotation.x = -Math.PI / 2;
     floorIn.position.set(0, 0, 4.1);
     floorIn.receiveShadow = true;
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), roomMat);
+    back.position.set(0, 3, 8.1);
+    const left = new THREE.Mesh(new THREE.PlaneGeometry(8, 6), roomMat);
+    left.rotation.y = Math.PI / 2;
+    left.position.set(-8, 3, 4.1);
+    const right = left.clone();
+    right.position.x = 8;
+
     // Вулиця: трава та небо
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 40), new THREE.MeshStandardMaterial({ color: '#7fa57a', roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
@@ -307,24 +390,39 @@ export class ConfiguratorScene {
       new THREE.MeshBasicMaterial({ map: skyTexture(), toneMapped: false, fog: false }),
     );
     sky.position.set(0, 8.5, -38);
-    this.scene.add(floorIn, ground, sky);
+    this.scene.add(floorIn, back, left, right, ground, sky);
   }
 
-  private frameMaterial(color: ColorDef): THREE.MeshStandardMaterial {
-    let m = this.frameMats.get(color.id);
+  private applyViewLimits(): void {
+    if (this.view === 'inside') {
+      this.controls.minAzimuthAngle = -1.05;
+      this.controls.maxAzimuthAngle = 1.05;
+    } else {
+      this.controls.minAzimuthAngle = Math.PI - 1.05;
+      this.controls.maxAzimuthAngle = Math.PI + 1.05;
+    }
+  }
+
+  /** Оздоблення профілю. color=null — базове (білий ПВХ або сирий алюміній). */
+  private finish(alu: boolean, color: ColorDef | null): THREE.MeshStandardMaterial {
+    const key = `${alu ? 'a' : 'p'}:${color?.id ?? 'base'}`;
+    let m = this.finishes.get(key);
     if (!m) {
-      m = new THREE.MeshStandardMaterial({
-        color: color.wood ? '#ffffff' : color.hex,
-        map: color.wood ? woodTexture(color.hex) : null,
-        roughness: color.wood ? 0.62 : 0.5,
-        metalness: 0,
-      });
-      this.frameMats.set(color.id, m);
+      if (!color) {
+        m = alu
+          ? new THREE.MeshStandardMaterial({ color: '#bcc2ca', metalness: 0.78, roughness: 0.36 })
+          : new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.5 });
+      } else if (color.wood) {
+        m = new THREE.MeshStandardMaterial({ color: '#ffffff', map: woodTexture(color.hex), roughness: 0.62 });
+      } else {
+        m = new THREE.MeshStandardMaterial({ color: color.hex, roughness: alu ? 0.42 : 0.5, metalness: alu ? 0.3 : 0 });
+      }
+      this.finishes.set(key, m);
     }
     return m;
   }
 
-  private glassMaterial(id: GlassId): THREE.MeshPhysicalMaterial {
+  private glassMaterial(id: CoatingId): THREE.MeshPhysicalMaterial {
     let m = this.glassMats.get(id);
     if (!m) {
       const look = GLASS_LOOK[id];
@@ -354,35 +452,42 @@ export class ConfiguratorScene {
   private rebuild(cfg: Config): void {
     this.clearGroup(this.product);
     this.indicatorNodes = [];
-    this.clearGroup(this.dims);
-    if (this.wall) {
-      this.scene.remove(this.wall);
-      this.wall.geometry.dispose();
-      this.wall = null;
+    for (const e of this.extras) {
+      this.scene.remove(e);
+      e.geometry.dispose();
     }
-    if (this.ceiling) {
-      this.scene.remove(this.ceiling);
-      this.ceiling.geometry.dispose();
-      this.ceiling = null;
-    }
+    this.extras = [];
     this.anims = [];
 
+    const def = PRODUCTS[cfg.product];
     const layout = layoutOf(cfg.product, cfg.layout);
+    const sections = effectiveSections(cfg);
+    const profile = profileOf(cfg.profile);
+    const alu = profile.material === 'alu';
+    const glazing = glazingOf(cfg.glazing);
     const color = COLORS.find((c) => c.id === cfg.color) ?? COLORS[0]!;
-    const profile = PROFILES.find((p) => p.id === cfg.profile) ?? PROFILES[1]!;
-    const frameMat = this.frameMaterial(color);
-    const glassMat = this.glassMaterial(cfg.glass);
+
+    // Матеріали профілю: вулиця / кімната / бічні грані — ламінація залежить від сторони
+    const base = this.finish(alu, null);
+    const laminated = (side: 'outer' | 'inner') => cfg.lamination === 'both' || cfg.lamination === side;
+    const ext = laminated('outer') ? this.finish(alu, color) : base;
+    const int = laminated('inner') ? this.finish(alu, color) : base;
+    const core = cfg.lamination === 'both' ? ext : base;
+    const profMats: THREE.Material[] = [ext, int, core];
+    // BoxGeometry: +x, -x, +y, -y, +z (кімната), -z (вулиця)
+    const boxMats: THREE.Material[] = [core, core, core, core, int, ext];
+    const glassMat = this.glassMaterial(cfg.coating);
 
     const W = cfg.width / 1000;
     const H = cfg.height / 1000;
     const d = profile.depth / 1000;
     const arch = cfg.shape === 'arch' && cfg.product === 'window';
     const sliding = cfg.product === 'sliding';
-    const f = cfg.product === 'entrance' ? 0.08 : sliding ? 0.062 : 0.068;
+    const f = profile.face + (cfg.product === 'entrance' ? 0.012 : sliding ? -0.006 : 0);
     const y0 = cfg.product === 'window' ? 0.9 : 0;
     const filling: FillingKind = cfg.product === 'entrance' ? cfg.filling : 'glass';
 
-    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0, shadow = true) => {
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], parent: THREE.Object3D, x = 0, y = 0, z = 0, shadow = true) => {
       const m = new THREE.Mesh(geo, mat);
       m.position.set(x, y, z);
       m.castShadow = shadow;
@@ -393,23 +498,38 @@ export class ConfiguratorScene {
     const box = (w: number, h: number, dd: number) => new THREE.BoxGeometry(w, h, dd);
 
     this.product.position.set(0, y0, 0);
-    this.dims.position.copy(this.product.position);
+    this.dims.position.set(0, y0, 0);
 
     // --- Зовнішня рама
     const outer = outline(W, H, arch);
     outer.holes.push(innerHole(W, H, f, arch));
-    add(extrude(outer, d), frameMat, this.product);
+    add(extrude(outer, d, true), profMats, this.product);
 
     const iw = W - 2 * f;
     const zoneBottom = f;
     let zoneTop = H - f;
+
+    // Скло: 1–4 листи з повітряними проміжками; між ними — дистанційна рамка
+    const paneT = 0.004;
+    const total = glazing.total / 1000;
+    const gap = glazing.panes > 1 ? (total - glazing.panes * paneT) / (glazing.panes - 1) : 0;
+    const paneZ = (i: number) => -total / 2 + paneT / 2 + i * (paneT + gap);
+
+    const glazingBox = (parent: THREE.Object3D, w: number, h: number, y = 0) => {
+      for (let i = 0; i < glazing.panes; i++) {
+        add(box(w, h, paneT), glassMat, parent, 0, y, paneZ(i), false).renderOrder = 2;
+      }
+      if (glazing.panes > 1) {
+        add(rectFrameGeometry(w + 0.004, h + 0.004, 0.016, total - 0.002), this.spacer, parent, 0, y, 0, false);
+      }
+    };
 
     // --- Арка: імпост на рівні п'яти арки і верхнє фіксоване скло
     if (arch) {
       const { rise, R, cy } = archCircle(W, H);
       const ys = H - rise;
       zoneTop = ys - f / 2;
-      add(box(iw, f, d * 0.9), frameMat, this.product, 0, ys, 0);
+      add(box(iw, f, d * 0.9), boxMats, this.product, 0, ys, 0);
 
       const Ri = R - f;
       const hwI = W / 2 - f;
@@ -430,7 +550,9 @@ export class ConfiguratorScene {
         s.absarc(0, cy, Ri - 0.004, th, Math.PI - th, false);
       }
       s.closePath();
-      add(extrude(s, 0.022), glassMat, this.product, 0, 0, 0, false).renderOrder = 2;
+      for (let i = 0; i < glazing.panes; i++) {
+        add(extrude(s, paneT), glassMat, this.product, 0, 0, paneZ(i), false).renderOrder = 2;
+      }
     }
 
     const hz = Math.max(0.15, zoneTop - zoneBottom);
@@ -450,7 +572,7 @@ export class ConfiguratorScene {
       const ov = 0.045;
       const leafW = (iw + (n - 1) * ov) / n;
       const step = leafW - ov;
-      layout.sections.forEach((kind, i) => {
+      sections.forEach((kind, i) => {
         cells.push({ x0: -iw / 2 + i * step, x1: -iw / 2 + i * step + leafW, kind, lane: i % 2 === 0 ? -1 : 1 });
       });
       travelFactor = n === 3 ? 0.45 : 0.9;
@@ -459,34 +581,28 @@ export class ConfiguratorScene {
       const avail = iw - m * (n - 1);
       const ratios = layout.ratios ?? Array.from({ length: n }, () => 1 / n);
       let x = -iw / 2;
-      layout.sections.forEach((kind, i) => {
+      sections.forEach((kind, i) => {
         const sw = avail * (ratios[i] ?? 1 / n);
         cells.push({ x0: x, x1: x + sw, kind, lane: 0 });
         x += sw;
         if (i < n - 1) {
-          add(box(m, hz, d * 0.9), frameMat, this.product, x + m / 2, zoneBottom + hz / 2, 0);
+          add(box(m, hz, d * 0.9), boxMats, this.product, x + m / 2, zoneBottom + hz / 2, 0);
           x += m;
         }
       });
     }
 
     const makeFill = (parent: THREE.Object3D, w: number, h: number, mode: FillingKind) => {
-      const glassPane = (gw: number, gh: number, gy: number) => {
-        const m = add(box(gw, gh, 0.022), glassMat, parent, 0, gy, 0, false);
-        m.renderOrder = 2;
-      };
       const panelBox = (pw: number, ph: number, py: number) => {
-        add(box(pw, ph, 0.036), frameMat, parent, 0, py, 0);
-        if (ph > 0.35 && pw > 0.3) {
-          add(box(pw * 0.72, ph * 0.72, 0.01), frameMat, parent, 0, py, 0.02);
-        }
+        add(box(pw, ph, 0.036), boxMats, parent, 0, py, 0);
+        if (ph > 0.35 && pw > 0.3) add(box(pw * 0.72, ph * 0.72, 0.01), boxMats, parent, 0, py, 0.02);
       };
-      if (mode === 'glass') glassPane(w, h, 0);
+      if (mode === 'glass') glazingBox(parent, w, h);
       else if (mode === 'panel') panelBox(w, h, 0);
       else {
         const low = h * 0.42;
         panelBox(w, low, -h / 2 + low / 2);
-        glassPane(w, h - low, h / 2 - (h - low) / 2);
+        glazingBox(parent, w, h - low, h / 2 - (h - low) / 2);
       }
     };
 
@@ -531,6 +647,19 @@ export class ConfiguratorScene {
       }
     };
 
+    /** Москітна сітка з боку вулиці: нерухома, не відкривається разом зі стулкою. */
+    const addNet = (cx: number, sw: number) => {
+      const w = sw - 0.012;
+      const h = hz - 0.012;
+      const geo = new THREE.PlaneGeometry(w, h);
+      const cell = 0.014;
+      const uv = geo.attributes.uv!;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / cell, (uv.getY(i) * h) / cell);
+      const z = -d / 2 - 0.012;
+      add(geo, this.netMat, this.product, cx, zoneBottom + hz / 2, z, false).renderOrder = 3;
+      add(rectFrameGeometry(w + 0.006, h + 0.006, 0.018, 0.014), this.netFrameMat, this.product, cx, zoneBottom + hz / 2, z, false);
+    };
+
     cells.forEach((cell) => {
       const sw = cell.x1 - cell.x0;
       const cx = (cell.x0 + cell.x1) / 2;
@@ -539,13 +668,13 @@ export class ConfiguratorScene {
       const door = kind === 'door-l' || kind === 'door-r';
       const slide = kind === 'slide-l' || kind === 'slide-r';
       const isLeaf = kind !== 'fixed' || sliding;
-      const fs = door ? 0.085 : sliding ? 0.062 : 0.058;
-      const ds = sliding ? 0.04 : door ? Math.min(d, 0.07) : d * 0.82;
-      const gap = 0.004;
+      const fs = door ? f * 1.05 : sliding ? f * 0.95 : f * 0.85;
+      const ds = sliding ? Math.min(0.04, d * 0.8) : door ? Math.min(d, 0.07) : d * 0.82;
+      const gapS = 0.004;
 
       if (!isLeaf) {
         // Глуха секція: тонкі штапики та скло/панель безпосередньо в рамі
-        add(rectFrameGeometry(sw - 0.004, hz - 0.004, 0.026, 0.045), frameMat, this.product, cx, zoneBottom + hz / 2, 0);
+        add(rectFrameGeometry(sw - 0.004, hz - 0.004, 0.026, Math.min(0.045, d * 0.8), true), profMats, this.product, cx, zoneBottom + hz / 2, 0);
         const holder = new THREE.Group();
         holder.position.set(cx, zoneBottom + hz / 2, 0);
         this.product.add(holder);
@@ -553,8 +682,8 @@ export class ConfiguratorScene {
         return;
       }
 
-      const lw = sw - 2 * gap;
-      const lh = hz - 2 * gap;
+      const lw = sw - 2 * gapS;
+      const lh = hz - 2 * gapS;
       const hingeLeft = kind.endsWith('-l');
       const A = new THREE.Group();
       const B = new THREE.Group();
@@ -562,10 +691,10 @@ export class ConfiguratorScene {
       let baseX: number;
       if (slide || (sliding && kind === 'fixed')) {
         baseX = cx;
-        A.position.set(cx, zoneBottom + gap, laneZ);
+        A.position.set(cx, zoneBottom + gapS, laneZ);
       } else {
-        baseX = hingeLeft ? cell.x0 + gap : cell.x1 - gap;
-        A.position.set(baseX, zoneBottom + gap, laneZ);
+        baseX = hingeLeft ? cell.x0 + gapS : cell.x1 - gapS;
+        A.position.set(baseX, zoneBottom + gapS, laneZ);
         B.position.x = hingeLeft ? lw / 2 : -lw / 2;
       }
       leaf.position.y = lh / 2;
@@ -573,7 +702,7 @@ export class ConfiguratorScene {
       A.add(B);
       this.product.add(A);
 
-      add(rectFrameGeometry(lw, lh, fs, ds), frameMat, leaf);
+      add(rectFrameGeometry(lw, lh, fs, ds, true), profMats, leaf);
       const holder = new THREE.Group();
       leaf.add(holder);
       const leafFill: FillingKind = door || (cfg.product === 'entrance' && kind === 'fixed') ? filling : 'glass';
@@ -581,16 +710,16 @@ export class ConfiguratorScene {
 
       const operable = kind !== 'fixed';
       if (operable && !slide) handleGroup(leaf, lw, lh, fs, ds, hingeLeft, door);
-      if (operable && slide) {
-        const edgeLeft = kind === 'slide-l';
-        handleGroup(leaf, lw, lh, fs, ds, !edgeLeft, false);
-      }
-      if (kind.startsWith('turn') || kind.startsWith('tilt-turn')) {
+      if (operable && slide) handleGroup(leaf, lw, lh, fs, ds, kind !== 'slide-l', false);
+
+      const isTurn = kind.startsWith('turn') || kind.startsWith('tilt-turn');
+      if (isTurn) {
         const holderInd = new THREE.Group();
         leaf.add(holderInd);
         indicator(holderInd, lw, lh, fs, hingeLeft, kind.startsWith('tilt-turn'));
         // схематичні знаки відкривання видно лише при закритій стулці
         this.indicatorNodes.push(holderInd);
+        if (def.features.net && cfg.net) addNet(cx, sw);
       }
 
       if (operable) {
@@ -601,44 +730,69 @@ export class ConfiguratorScene {
           hingeLeft,
           isSlide: slide,
           dir: kind === 'slide-l' ? -1 : 1,
-          travel: (cell.x1 - cell.x0) * travelFactor,
+          travel: sw * travelFactor,
           door,
           canTilt: kind.startsWith('tilt-turn'),
         });
       }
     });
 
-    // --- Стіна з отвором
+    // --- Стіна з отвором (кімната) та фасадна «шкірка» (вулиця)
     const wallW = Math.max(W + 2.4, 16);
     const wallTop = Math.max(2.8, y0 + H + 0.55);
-    const wallShape = new THREE.Shape();
-    wallShape.moveTo(-wallW / 2, -0.4);
-    wallShape.lineTo(wallW / 2, -0.4);
-    wallShape.lineTo(wallW / 2, wallTop);
-    wallShape.lineTo(-wallW / 2, wallTop);
-    wallShape.closePath();
-    const holeShape = outline(W + 0.008, H + 0.008, arch);
-    wallShape.holes.push(new THREE.Path(holeShape.getPoints(48).map((p) => new THREE.Vector2(p.x, p.y + y0 - 0.004))));
-    this.wall = new THREE.Mesh(extrude(wallShape, 0.22), new THREE.MeshStandardMaterial({ color: '#8d97a8', roughness: 0.95 }));
-    this.wall.receiveShadow = true;
-    this.wall.castShadow = true;
-    this.scene.add(this.wall);
+    const wallShape = (top: number, width: number) => {
+      const s = new THREE.Shape();
+      s.moveTo(-width / 2, -0.4);
+      s.lineTo(width / 2, -0.4);
+      s.lineTo(width / 2, top);
+      s.lineTo(-width / 2, top);
+      s.closePath();
+      const hole = outline(W + 0.008, H + 0.008, arch);
+      s.holes.push(new THREE.Path(hole.getPoints(48).map((p) => new THREE.Vector2(p.x, p.y + y0 - 0.004))));
+      return s;
+    };
+
+    const wall = new THREE.Mesh(extrude(wallShape(wallTop, wallW), 0.22), new THREE.MeshStandardMaterial({ color: '#8d97a8', roughness: 0.95 }));
+    wall.receiveShadow = true;
+    wall.castShadow = true;
+    const facade = new THREE.Mesh(
+      extrude(wallShape(wallTop + 6, wallW + 12), 0.03),
+      new THREE.MeshStandardMaterial({ color: '#cdbfa9', roughness: 1 }),
+    );
+    facade.position.z = -0.125;
+    facade.receiveShadow = true;
+    facade.castShadow = true;
 
     // Стеля, щоб над стіною не просвічувало небо
-    this.ceiling = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 8), new THREE.MeshStandardMaterial({ color: '#a9b2c0', roughness: 1 }));
-    this.ceiling.rotation.x = Math.PI / 2;
-    this.ceiling.position.set(0, wallTop, 3.9);
-    this.ceiling.receiveShadow = true;
-    this.scene.add(this.ceiling);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 8), new THREE.MeshStandardMaterial({ color: '#a9b2c0', roughness: 1 }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, wallTop, 3.9);
+    ceiling.receiveShadow = true;
+    this.extras.push(wall, facade, ceiling);
+    this.scene.add(wall, facade, ceiling);
 
-    // --- Підвіконня для вікон
-    if (cfg.product === 'window') {
+    // --- Підвіконня (кімната) і відлив (вулиця)
+    if (def.features.sill && cfg.sill) {
       add(box(W + 0.16, 0.032, 0.24), this.sillMat, this.product, 0, -0.016, 0.12);
     }
+    if (def.features.ebb && cfg.ebb) {
+      const ebb = add(box(W + 0.08, 0.012, 0.15), ext, this.product, 0, -0.016, -0.105);
+      ebb.rotation.x = -0.1;
+    }
 
-    // --- Розмірні лінії
+    this.dimInfo = { W, H, y0 };
+    this.buildDims();
+    this.labelW.textContent = `${cfg.width} мм`;
+    this.labelH.textContent = `${cfg.height} мм`;
+  }
+
+  /** Розмірні лінії розташовуємо з того боку, з якого дивимось. */
+  private buildDims(): void {
+    this.clearGroup(this.dims);
+    if (!this.dimInfo) return;
+    const { W, H } = this.dimInfo;
     const lineMat = new THREE.LineBasicMaterial({ color: '#ff7a1a' });
-    const zD = 0.14;
+    const zD = this.view === 'inside' ? 0.14 : -0.2;
     const top = H + 0.1;
     const left = -W / 2 - 0.12;
     const pts: THREE.Vector3[] = [
@@ -650,10 +804,7 @@ export class ConfiguratorScene {
       new THREE.Vector3(left - 0.04, H, zD), new THREE.Vector3(left + 0.04, H, zD),
     ];
     this.dims.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
-    this.dims.userData = { top, left, zD, W, H, y0 };
-
-    this.labelW.textContent = `${cfg.width} мм`;
-    this.labelH.textContent = `${cfg.height} мм`;
+    this.dims.userData = { top, left, zD };
   }
 
   // ---------- Камера ----------
@@ -662,13 +813,14 @@ export class ConfiguratorScene {
     const W = cfg.width / 1000;
     const H = cfg.height / 1000;
     const y0 = cfg.product === 'window' ? 0.9 : 0;
+    const side = this.view === 'inside' ? 1 : -1;
     const target = new THREE.Vector3(0, y0 + H / 2, 0);
     const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     const aspect = this.size.w / this.size.h;
     const fit = Math.max((H * 0.5 * 1.4) / tan, (W * 0.5 * 1.4) / (tan * aspect)) + 0.5;
 
     if (reset || !this.cfg) {
-      const dir = new THREE.Vector3(0.34, 0.1, 1).normalize();
+      const dir = new THREE.Vector3(0.34 * side, 0.1, side).normalize();
       this.camera.position.copy(target).addScaledVector(dir, fit);
     } else {
       const offset = this.camera.position.clone().sub(this.controls.target);
@@ -738,7 +890,7 @@ export class ConfiguratorScene {
       }
     }
 
-    const showIndicators = this.mode === 'closed';
+    const showIndicators = this.mode === 'closed' && this.view === 'inside';
     for (const n of this.indicatorNodes) n.visible = showIndicators;
 
     // Рендеримо лише коли щось змінилося: камера, анімація стулок або параметри
@@ -747,10 +899,11 @@ export class ConfiguratorScene {
     this.dirty = false;
     this.renderer.render(this.scene, this.camera);
 
-    const info = this.dims.userData as { top: number; left: number; zD: number; W: number; H: number; y0: number };
-    if (info && typeof info.top === 'number') {
-      this.place(this.labelW, 0, info.y0 + info.top + 0.02, info.zD);
-      this.place(this.labelH, info.left - 0.02, info.y0 + info.H / 2, info.zD);
+    const info = this.dims.userData as { top?: number; left?: number; zD?: number };
+    if (this.dimInfo && typeof info.top === 'number' && typeof info.left === 'number' && typeof info.zD === 'number') {
+      const { H, y0 } = this.dimInfo;
+      this.place(this.labelW, 0, y0 + info.top + 0.02, info.zD);
+      this.place(this.labelH, info.left - 0.02, y0 + H / 2, info.zD);
     }
   };
 }
