@@ -234,6 +234,7 @@ export class ConfiguratorScene {
   private product = new THREE.Group();
   private dims = new THREE.Group();
   private extras: THREE.Mesh[] = [];
+  private world!: { floor: THREE.Mesh; back: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh; ground: THREE.Mesh; sky: THREE.Mesh };
   private anims: Anim[] = [];
   private indicatorNodes: THREE.Object3D[] = [];
   private mode: OpenMode = 'closed';
@@ -411,6 +412,33 @@ export class ConfiguratorScene {
     );
     sky.position.set(0, 8.5, -38);
     this.scene.add(floorIn, back, left, right, ground, sky);
+    this.world = { floor: floorIn, back, left, right, ground, sky };
+  }
+
+  /**
+   * Кімната й вулиця мають бути більшими за відстань камери: для широких виробів камера
+   * відʼїжджає далеко, і без цього вона опиняється за задньою стіною (зникає підлога).
+   */
+  private fitWorld(dist: number): void {
+    const { floor, back, left, right, ground, sky } = this.world;
+    const halfW = Math.max(8, dist * 1.1);
+    const depth = Math.max(8, dist * 1.15);
+    const h = Math.max(6, depth * 0.5);
+    floor.scale.set(halfW / 8, depth / 8, 1);
+    floor.position.set(0, 0, 0.1 + depth / 2);
+    back.scale.set(halfW / 8, h / 6, 1);
+    back.position.set(0, h / 2, 0.1 + depth);
+    for (const [wall, x] of [[left, -halfW], [right, halfW]] as const) {
+      wall.scale.set(depth / 8, h / 6, 1);
+      wall.position.set(x, h / 2, 0.1 + depth / 2);
+    }
+    const k = Math.max(1, dist / 20);
+    ground.scale.set(k, k, 1);
+    ground.position.set(0, -0.001, -(0.1 + 20 * k));
+    sky.scale.set(k, k, 1);
+    sky.position.set(0, 8.5 * k, -38 * k);
+    this.camera.far = Math.max(80, 38 * k + dist + 40);
+    this.camera.updateProjectionMatrix();
   }
 
   private applyViewLimits(): void {
@@ -855,6 +883,7 @@ export class ConfiguratorScene {
     this.controls.target.copy(target);
     this.controls.minDistance = fit * 0.45;
     this.controls.maxDistance = fit * 1.7;
+    this.fitWorld(this.controls.maxDistance);
     this.controls.update();
   }
 
