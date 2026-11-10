@@ -10,7 +10,7 @@ const ICONS: Record<ProductKind, string> = {
     <rect x="14" y="8" width="92" height="84" rx="4" ${stroke} fill="#fff"/>
     <rect x="22" y="16" width="36" height="68" ${stroke} ${glass}/>
     <rect x="62" y="16" width="36" height="68" ${stroke} ${glass}/>
-    <path d="M22 16l36 34-36 34M98 16L62 50l36 34" stroke="#ff7a1a" stroke-width="2.2" stroke-dasharray="4 4" stroke-linecap="round"/>
+    <path d="M58 16L22 50l36 34M62 16l36 34-36 34" stroke="#ff7a1a" stroke-width="2.2" stroke-dasharray="4 4" stroke-linecap="round"/>
     <path d="M54 46v8M66 46v8" ${stroke}/></svg>`,
   balcony: `<svg viewBox="0 0 120 100" fill="none" aria-hidden="true">
     <rect x="10" y="6" width="100" height="90" rx="4" ${stroke} fill="#fff"/>
