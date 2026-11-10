@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vikna Shop — металопластикові вікна та двері на замовлення</title>
+  <meta name="description" content="Виготовляємо металопластикові вікна, балконні блоки, вхідні та розсувні системи. Зберіть конструкцію в 3D-конструкторі й отримайте розрахунок за хвилину." />
+  <meta name="theme-color" content="#0f1a2b" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <script>document.documentElement.classList.add('js');</script>
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+  <a class="skip" href="#main">До змісту</a>
+
+  <header class="site-header" data-header>
+    <div class="wrap bar">
+      <a class="logo" href="#top" aria-label="Vikna Shop — на початок">
+        <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+          <rect x="3" y="3" width="26" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2.4" />
+          <path d="M16 3v26M3 16h26" stroke="currentColor" stroke-width="2.4" />
+          <path d="M6.5 6.5l6 6" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" />
+        </svg>
+        <span>Vikna<b>Shop</b></span>
+      </a>
+      <nav class="nav" id="nav" aria-label="Основна навігація">
+        <a href="#about">Про нас</a>
+        <a href="#products">Продукція</a>
+        <a href="#development">Розробка</a>
+        <a href="#configurator">Конструктор</a>
+        <a href="#prices">Прайс</a>
+        <a href="#order" class="nav-cta">Замовити</a>
+      </nav>
+      <a class="btn btn-accent btn-sm head-cta" href="#configurator">Розрахувати</a>
+      <button class="burger" type="button" aria-expanded="false" aria-controls="nav" aria-label="Меню">
+        <span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero" id="top" data-hero>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow reveal">Металопластикові вікна та двері</p>
+          <h1 class="reveal">Вікна й двері, які <em>тримають тепло</em> і тишу</h1>
+          <p class="lead reveal">
+            Виготовляємо вікна, балконні блоки, вхідні та розсувні системи на власному виробництві
+            і самі їх монтуємо. Зберіть конструкцію в 3D — і дізнайтеся вартість, не чекаючи дзвінка менеджера.
+          </p>
+          <div class="hero-cta reveal">
+            <a class="btn btn-accent" href="#configurator">Зібрати в 3D-конструкторі</a>
+            <a class="btn btn-ghost" href="#order">Залишити заявку</a>
+          </div>
+          <dl class="hero-stats reveal">
+            <div><dt data-count="12" data-suffix="">12</dt><dd>років на ринку</dd></div>
+            <div><dt data-count="18000" data-suffix="+">18 000+</dt><dd>встановлених виробів</dd></div>
+            <div><dt data-count="5" data-suffix="">5</dt><dd>років гарантії в договорі</dd></div>
+          </dl>
+        </div>
+
+        <div class="hero-art" aria-hidden="true">
+          <div class="hw">
+            <div class="hw-stage">
+            <div class="hw-scene">
+              <span class="hw-sun"></span>
+              <svg viewBox="0 0 400 300" preserveAspectRatio="none" class="hw-hills">
+                <path d="M0 210 C70 150 130 190 200 160 C270 130 330 175 400 140 L400 300 L0 300Z" fill="#4f8f6b" />
+                <path d="M0 250 C80 205 150 240 230 215 C300 195 350 225 400 205 L400 300 L0 300Z" fill="#2f6a52" />
+              </svg>
+            </div>
+            <div class="hw-frame">
+              <div class="hw-sash hw-sash-l"><span class="hw-glass"></span><i class="hw-handle"></i></div>
+              <div class="hw-sash hw-sash-r"><span class="hw-glass"></span><i class="hw-handle"></i></div>
+            </div>
+            </div>
+            <div class="hw-chip hw-chip-1"><b>Ψ 0,9</b><span>теплотехнічний показник профілю</span></div>
+            <div class="hw-chip hw-chip-2"><b>−32 дБ</b><span>шумоізоляція</span></div>
+          </div>
+        </div>
+      </div>
+      <a class="scroll-cue" href="#about" aria-label="Прокрутити до розділу «Про нас»"><span></span></a>
+    </section>
+
+    <!-- ABOUT -->
+    <section class="section" id="about">
+      <div class="wrap about-grid">
+        <div class="about-head">
+          <p class="eyebrow reveal">Про нас</p>
+          <h2 class="reveal">Робимо вікна самі — від профілю до монтажу</h2>
+        </div>
+        <div class="about-body">
+          <p class="big reveal">
+            Vikna Shop починався з однієї бригади й невеликого цеху. Сьогодні це повний цикл:
+            заміри, розрахунок, виробництво, доставка, монтаж і сервіс — без посередників і чужих підрядників.
+          </p>
+          <p class="reveal">
+            Тому ми відповідаємо за результат цілком: якщо щось не так зі склопакетом чи фурнітурою,
+            вам не потрібно з’ясовувати, чия це провина. Ви телефонуєте нам — ми приїжджаємо й виправляємо.
+          </p>
+          <ul class="values">
+            <li class="reveal"><b>Власний цех</b><span>Контролюємо якість зварювання, зачистки швів і збирання склопакетів.</span></li>
+            <li class="reveal"><b>Штатні монтажники</b><span>Бригади в нашій формі, з гарантією на монтажні роботи.</span></li>
+            <li class="reveal"><b>Прозорий кошторис</b><span>Ціна в договорі не змінюється після заміру й монтажу.</span></li>
+            <li class="reveal"><b>Сервіс після продажу</b><span>Регулювання фурнітури та заміна ущільнювачів — у гарантійний термін безкоштовно.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section class="section section-tint" id="products">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow reveal">Наша продукція</p>
+          <h2 class="reveal">Чотири напрями, один стандарт якості</h2>
+          <p class="reveal">Оберіть тип виробу — відкриємо його в конструкторі з початковими параметрами.</p>
+        </header>
+        <div class="cards" data-products></div>
+      </div>
+    </section>
+
+    <!-- DEVELOPMENT -->
+    <section class="section" id="development">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow reveal">Розробка</p>
+          <h2 class="reveal">Проєктуємо під ваш отвір, а не під типовий розмір</h2>
+          <p class="reveal">
+            Нестандартна арка, висока лоджія, вікно в мансарді, дверний проріз у старому будинку —
+            для таких завдань ми робимо індивідуальні креслення й узгоджуємо їх із вами до запуску у виробництво.
+          </p>
+        </header>
+        <ol class="steps">
+          <li class="reveal"><span class="n">01</span><h3>Замір</h3><p>Майстер приїздить безкоштовно, вимірює отвір, оцінює стан стін і підказує, що краще підійде.</p></li>
+          <li class="reveal"><span class="n">02</span><h3>Проєкт і кошторис</h3><p>Робимо креслення та 3D-візуалізацію, погоджуємо профіль, скло, колір і фурнітуру. Фіксуємо ціну.</p></li>
+          <li class="reveal"><span class="n">03</span><h3>Виробництво</h3><p>Виготовляємо на власному цеху за 7–10 робочих днів. Контроль якості на кожному етапі.</p></li>
+          <li class="reveal"><span class="n">04</span><h3>Монтаж і здача</h3><p>Встановлюємо за один день, прибираємо за собою, налаштовуємо фурнітуру й видаємо гарантійний талон.</p></li>
+        </ol>
+        <div class="custom reveal">
+          <div>
+            <h3>Що можемо виготовити нестандартно</h3>
+            <p>Арки та сегментні форми, ламінацію під дерево з обох боків, розсувні портали до 5,6 м, двері з бічними вставками, кольорові профілі за каталогом RAL.</p>
+          </div>
+          <a class="btn btn-dark" href="#order">Обговорити проєкт</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIGURATOR -->
+    <section class="section section-dark" id="configurator">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow reveal">3D-конструктор</p>
+          <h2 class="reveal">Зберіть своє вікно чи двері за хвилину</h2>
+          <p class="reveal">Змінюйте розмір, форму, колір і тип відкривання — модель оновлюється одразу, а вартість рахується на льоту.</p>
+        </header>
+        <div class="cfg" data-configurator></div>
+      </div>
+    </section>
+
+    <!-- PRICES -->
+    <section class="section" id="prices">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow reveal">Прайс-лист</p>
+          <h2 class="reveal">Орієнтовні ціни без прихованих доплат</h2>
+          <p class="reveal">Остаточну вартість фіксуємо в договорі після безкоштовного заміру. Нижче — вартість «від» для типових конструкцій.</p>
+        </header>
+        <div class="prices" data-prices></div>
+      </div>
+    </section>
+
+    <!-- ORDER -->
+    <section class="section section-tint" id="order">
+      <div class="wrap order-grid">
+        <div class="order-info">
+          <p class="eyebrow reveal">Заявка</p>
+          <h2 class="reveal">Розкажіть, що потрібно, — зв’яжемося протягом 15 хвилин</h2>
+          <p class="reveal">У робочий час (пн–сб, 9:00–19:00) передзвонюємо швидко. Поза ним — наступного ранку. Заявка нічого не коштує й до нічого не зобов’язує.</p>
+          <div class="attached" data-attached hidden></div>
+          <ul class="contacts reveal">
+            <li><span>Телефон</span><a href="tel:+380000000000">+38 (000) 000-00-00</a></li>
+            <li><span>E-mail</span><a href="mailto:info@vikna-shop.example">info@vikna-shop.example</a></li>
+            <li><span>Графік</span>Пн–Сб, 9:00–19:00</li>
+          </ul>
+        </div>
+        <form class="form reveal" data-order-form novalidate>
+          <div class="field">
+            <label for="f-name">Ім’я</label>
+            <input id="f-name" name="name" type="text" autocomplete="name" maxlength="80" required placeholder="Олександр" />
+            <p class="err" data-err="name"></p>
+          </div>
+          <div class="field">
+            <label for="f-phone">Телефон</label>
+            <input id="f-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+38 0XX XXX XX XX" />
+            <p class="err" data-err="phone"></p>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="f-email">E-mail <small>(необов’язково)</small></label>
+              <input id="f-email" name="email" type="email" autocomplete="email" maxlength="120" placeholder="name@mail.com" />
+              <p class="err" data-err="email"></p>
+            </div>
+            <div class="field">
+              <label for="f-city">Місто <small>(необов’язково)</small></label>
+              <input id="f-city" name="city" type="text" autocomplete="address-level2" maxlength="80" placeholder="Дніпро" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-product">Що потрібно</label>
+            <select id="f-product" name="product">
+              <option value="window">Вікна</option>
+              <option value="balcony">Балконні двері / блок</option>
+              <option value="entrance">Вхідні двері</option>
+              <option value="sliding">Розсувна система</option>
+              <option value="other">Інше / не впевнений(-а)</option>
+            </select>
+          </div>
+          <fieldset class="field pills">
+            <legend>Як зручніше зв’язатися</legend>
+            <label><input type="radio" name="contact" value="call" checked /><span>Дзвінок</span></label>
+            <label><input type="radio" name="contact" value="telegram" /><span>Telegram</span></label>
+            <label><input type="radio" name="contact" value="viber" /><span>Viber</span></label>
+            <label><input type="radio" name="contact" value="email" /><span>E-mail</span></label>
+          </fieldset>
+          <div class="field">
+            <label for="f-message">Коментар <small>(необов’язково)</small></label>
+            <textarea id="f-message" name="message" rows="4" maxlength="1500" placeholder="Розміри, кількість, терміни, особливості об’єкта…"></textarea>
+          </div>
+          <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <div class="field check">
+            <label><input type="checkbox" name="consent" /><span>Погоджуюсь на обробку персональних даних для зв’язку щодо замовлення</span></label>
+            <p class="err" data-err="consent"></p>
+          </div>
+          <p class="err form-err" data-err="form" role="alert"></p>
+          <button class="btn btn-accent btn-block" type="submit"><span data-label>Надіслати заявку</span></button>
+          <div class="done" data-done hidden role="status">
+            <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="3" /><path d="M14 25l7 7 13-15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            <h3>Заявку прийнято</h3>
+            <p data-done-text></p>
+            <button class="btn btn-ghost" type="button" data-again>Надіслати ще одну</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap foot">
+      <a class="logo" href="#top"><span>Vikna<b>Shop</b></span></a>
+      <p>Демонстраційний концепт сайту. Ціни та контактні дані умовні.</p>
+      <p>© <span data-year>2026</span> Vikna Shop</p>
+    </div>
+  </footer>
+</body>
+</html>

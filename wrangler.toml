@@ -1,0 +1,16 @@
+name = "vikna-shop"
+main = "worker/index.ts"
+compatibility_date = "2025-09-01"
+
+# Статика (зібраний Vite фронтенд). Воркер запускається першим лише для /api/*.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# База даних D1. Створіть її командою `npx wrangler d1 create vikna-shop`
+# і підставте отриманий database_id (для локальної розробки достатньо заглушки).
+[[d1_databases]]
+binding = "DB"
+database_name = "vikna-shop"
+database_id = "00000000-0000-0000-0000-000000000000"

@@ -1,0 +1,29 @@
+{
+  "name": "vikna-shop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Лендінг металопластикових вікон і дверей з 3D-конструктором. Vite + TypeScript + three.js, Cloudflare Workers + D1.",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "wrangler dev --port 8787",
+    "build": "npm run typecheck && vite build",
+    "start": "npm run build && wrangler dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit",
+    "db:local": "wrangler d1 execute vikna-shop --local --file=./schema.sql",
+    "db:remote": "wrangler d1 execute vikna-shop --remote --file=./schema.sql",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource-variable/unbounded": "^5.3.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261109.1",
+    "@types/three": "^0.187.0",
+    "typescript": "~5.9",
+    "vite": "^8.3.7",
+    "wrangler": "^4.159.0"
+  }
+}
