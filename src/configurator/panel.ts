@@ -81,6 +81,7 @@ export function initConfigurator(): void {
   let cfg: Config = defaultConfig('window');
   let mode: OpenMode = 'closed';
   let view: ViewSide = 'inside';
+  let lines = false;
   let scene: ConfiguratorScene | null = null;
   let sceneState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
 
@@ -96,7 +97,10 @@ export function initConfigurator(): void {
       </div>
       <div class="cfg-tools">
         <div class="seg" data-modes role="group" aria-label="Положення стулок"></div>
-        <div class="seg"><button type="button" data-reset>Скинути вигляд</button></div>
+        <div class="seg">
+          <button type="button" data-lines aria-pressed="false">Лінії відкривання</button>
+          <button type="button" data-reset>Скинути вигляд</button>
+        </div>
       </div>
       <div class="cfg-fallback" data-fallback hidden>
         <p>3D-перегляд недоступний на цьому пристрої. Конструктор усе одно працює — параметри й розрахунок праворуч, а заявку можна надіслати з обраною конфігурацією.</p>
@@ -378,6 +382,12 @@ export function initConfigurator(): void {
     viewsHost.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     scene?.setView(view);
   });
+  const linesBtn = root.querySelector<HTMLButtonElement>('[data-lines]')!;
+  linesBtn.addEventListener('click', () => {
+    lines = !lines;
+    linesBtn.setAttribute('aria-pressed', String(lines));
+    scene?.setLines(lines);
+  });
   root.querySelector('[data-reset]')?.addEventListener('click', () => scene?.resetView());
 
   onConfigure((p) => setProduct(p));
@@ -393,6 +403,7 @@ export function initConfigurator(): void {
       sceneState = 'ready';
       scene.setMode(mode);
       scene.setView(view);
+      scene.setLines(lines);
       scene.update(cfg);
       stage.classList.add('ready');
     } catch (err) {

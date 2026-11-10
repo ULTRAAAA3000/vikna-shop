@@ -238,6 +238,7 @@ export class ConfiguratorScene {
   private indicatorNodes: THREE.Object3D[] = [];
   private mode: OpenMode = 'closed';
   private view: ViewSide = 'inside';
+  private showLines = false;
   private cfg: Config | null = null;
   private dimInfo: DimInfo | null = null;
   private lastKey = '';
@@ -335,6 +336,12 @@ export class ConfiguratorScene {
 
   setMode(mode: OpenMode): void {
     this.mode = mode;
+    this.dirty = true;
+  }
+
+  /** Схематичні лінії відкривання на склі: за замовчуванням вимкнені. */
+  setLines(on: boolean): void {
+    this.showLines = on;
     this.dirty = true;
   }
 
@@ -902,7 +909,7 @@ export class ConfiguratorScene {
       }
     }
 
-    const showIndicators = this.mode === 'closed' && this.view === 'inside';
+    const showIndicators = this.showLines && this.mode === 'closed' && this.view === 'inside';
     for (const n of this.indicatorNodes) n.visible = showIndicators;
 
     // Рендеримо лише коли щось змінилося: камера, анімація стулок або параметри
