@@ -134,6 +134,9 @@ export function initConfigurator(): void {
   const isSliding = () => cfg.product === 'sliding';
 
   const renderModes = () => {
+    // у розсувних систем немає поворотних стулок — кнопка ліній там зайва
+    const linesToggle = root.querySelector<HTMLButtonElement>('[data-lines]');
+    if (linesToggle) linesToggle.hidden = isSliding();
     if (!hasOperable()) {
       modesHost.hidden = true;
       mode = 'closed';
