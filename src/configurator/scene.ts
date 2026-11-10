@@ -246,7 +246,7 @@ export class ConfiguratorScene {
   private dirty = true;
   private size = { w: 1, h: 1 };
   private finishes = new Map<string, THREE.MeshStandardMaterial>();
-  private glassMats = new Map<CoatingId, THREE.MeshPhysicalMaterial>();
+  private glassMats = new Map<CoatingId, THREE.MeshStandardMaterial>();
   private metal = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.95, roughness: 0.28 });
   private spacer = new THREE.MeshStandardMaterial({ color: '#2b3038', roughness: 0.6 });
   private sillMat = new THREE.MeshStandardMaterial({ color: '#f2f2ef', roughness: 0.45 });
@@ -295,7 +295,20 @@ export class ConfiguratorScene {
     this.controls.minPolarAngle = 1.05;
     this.controls.maxPolarAngle = 1.75;
     this.controls.rotateSpeed = 0.7;
+    this.controls.zoomSpeed = 0.8;
     this.applyViewLimits();
+    // Колесо миші, клавіатура й дотики самі викликають controls.update() і «з'їдають» прапорець
+    // зміни, тому покладатися лише на його значення в кадрі не можна: слухаємо подію change.
+    this.controls.addEventListener('change', () => {
+      this.dirty = true;
+    });
+
+    // Якщо браузер скинув WebGL-контекст (важке навантаження) — відновлюємо картинку, а не «зависаємо»
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.dirty = true;
+    });
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
@@ -422,19 +435,18 @@ export class ConfiguratorScene {
     return m;
   }
 
-  private glassMaterial(id: CoatingId): THREE.MeshPhysicalMaterial {
+  private glassMaterial(id: CoatingId): THREE.MeshStandardMaterial {
     let m = this.glassMats.get(id);
     if (!m) {
       const look = GLASS_LOOK[id];
-      m = new THREE.MeshPhysicalMaterial({
+      m = new THREE.MeshStandardMaterial({
         color: look.color,
         transparent: true,
         opacity: look.opacity,
         roughness: look.roughness,
         metalness: 0,
-        envMapIntensity: 1.6,
+        envMapIntensity: 1.8,
         depthWrite: false,
-        clearcoat: 0.6,
       });
       this.glassMats.set(id, m);
     }

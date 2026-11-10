@@ -11,6 +11,7 @@ export function initOrderForm(): void {
 
   const done = form.querySelector<HTMLElement>('[data-done]')!;
   const doneText = form.querySelector<HTMLElement>('[data-done-text]')!;
+  const doneTitle = form.querySelector<HTMLElement>('[data-done-title]')!;
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const label = submit.querySelector<HTMLElement>('[data-label]')!;
   const productSelect = form.elements.namedItem('product') as HTMLSelectElement;
@@ -35,6 +36,24 @@ export function initOrderForm(): void {
     const first = firstKey ? form.elements.namedItem(firstKey) : null;
     if (first instanceof HTMLElement) first.focus();
   };
+
+  /** Демонстраційний режим: VITE_DEMO_MODE=true завжди показує «Тестове спрацювання» без звернення до API. */
+  const demoAlways = import.meta.env.VITE_DEMO_MODE === 'true';
+
+  const finish = (title: string, text: string) => {
+    doneTitle.textContent = title;
+    doneText.textContent = text;
+    done.hidden = false;
+    form.reset();
+    setAttached(null);
+  };
+
+  /** Сайт працює без бекенду (демо, перегляд статики) — замість помилки показуємо тестове повідомлення. */
+  const finishAsTest = () =>
+    finish(
+      'Тестове спрацювання',
+      'Це демонстраційна версія сайту, тому заявку не збережено. У робочій версії ваше звернення буде розглянуто, а менеджер зв’яжеться з вами обраним способом протягом 15 хвилин. Дякуємо, що протестували!',
+    );
 
   // Блок із конфігурацією з конструктора
   const renderAttached = (cfg: Config | null) => {
@@ -99,26 +118,31 @@ export function initOrderForm(): void {
     submit.disabled = true;
     label.textContent = 'Надсилаємо…';
     try {
+      if (demoAlways) {
+        finishAsTest();
+        return;
+      }
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = (await res.json().catch(() => null)) as ApiResponse | null;
+
       if (res.ok && data?.ok) {
         const num = data.id ? `Номер заявки — №${data.id}. ` : '';
-        doneText.textContent = `${num}Менеджер зв’яжеться з вами обраним способом найближчим часом.`;
-        done.hidden = false;
-        done.focus?.();
-        form.reset();
-        setAttached(null);
+        finish('Заявку прийнято', `${num}Ваше звернення буде розглянуто, а менеджер зв’яжеться з вами обраним способом найближчим часом.`);
       } else if (data && !data.ok && data.errors) {
         showErrors(data.errors);
+      } else if (data && !data.ok && res.status === 429) {
+        setError('form', data.error || 'Забагато заявок. Спробуйте за кілька хвилин.');
       } else {
-        setError('form', (data && !data.ok && data.error) || 'Не вдалося надіслати заявку. Спробуйте ще раз або зателефонуйте нам.');
+        // Немає JSON від нашого API (404/405, збій 5xx, статичний хостинг без воркера) — це не помилка користувача
+        finishAsTest();
       }
     } catch {
-      setError('form', 'Немає з’єднання. Перевірте інтернет і спробуйте ще раз.');
+      // Немає з’єднання з API — теж показуємо тестове повідомлення
+      finishAsTest();
     } finally {
       submit.disabled = false;
       label.textContent = 'Надіслати заявку';
