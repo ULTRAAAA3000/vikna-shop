@@ -634,6 +634,11 @@ export class ConfiguratorScene {
         add(box(0.022, 0.34, 0.024), this.metal, g, 0, 0, 0.012);
         add(box(0.03, 0.08, 0.008), this.metal, g, 0, 0.17, 0);
         add(box(0.03, 0.08, 0.008), this.metal, g, 0, -0.17, 0);
+        // така сама ручка із зовнішнього боку: дзеркально по осі z на тому самому місці
+        const outer = g.clone();
+        outer.position.z = -g.position.z;
+        outer.rotation.y = Math.PI;
+        leafParent.add(outer);
       } else {
         add(box(0.036, 0.034, 0.01), this.metal, g, 0, 0.045, 0);
         add(box(0.016, 0.12, 0.016), this.metal, g, 0, -0.012, 0.008);
