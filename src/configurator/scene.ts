@@ -234,7 +234,8 @@ export class ConfiguratorScene {
   private product = new THREE.Group();
   private dims = new THREE.Group();
   private extras: THREE.Mesh[] = [];
-  private world!: { floor: THREE.Mesh; back: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh; ground: THREE.Mesh; sky: THREE.Mesh };
+  private builtRoom = { halfW: 0, roomH: 0 };
+  private world!: { floor: THREE.Mesh; back: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh; ceiling: THREE.Mesh; ground: THREE.Mesh; sky: THREE.Mesh };
   private anims: Anim[] = [];
   private indicatorNodes: THREE.Object3D[] = [];
   private mode: OpenMode = 'closed';
@@ -411,27 +412,50 @@ export class ConfiguratorScene {
       new THREE.MeshBasicMaterial({ map: skyTexture(), toneMapped: false, fog: false }),
     );
     sky.position.set(0, 8.5, -38);
-    this.scene.add(floorIn, back, left, right, ground, sky);
-    this.world = { floor: floorIn, back, left, right, ground, sky };
+    // Стеля, щоб над стіною не просвічувало небо; розмір і висоту задає fitWorld
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: '#a9b2c0', roughness: 1 }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.receiveShadow = true;
+    this.scene.add(floorIn, back, left, right, ceiling, ground, sky);
+    this.world = { floor: floorIn, back, left, right, ceiling, ground, sky };
+  }
+
+  /** Відстань, на якій виріб повністю вміщується в кадр (залежить від пропорцій екрана). */
+  private fitOf(cfg: Config): number {
+    const W = cfg.width / 1000;
+    const H = cfg.height / 1000;
+    const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    const aspect = this.size.w / this.size.h;
+    return Math.max((H * 0.5 * 1.4) / tan, (W * 0.5 * 1.4) / (tan * aspect)) + 0.5;
   }
 
   /**
-   * Кімната й вулиця мають бути більшими за відстань камери: для широких виробів камера
-   * відʼїжджає далеко, і без цього вона опиняється за задньою стіною (зникає підлога).
+   * Розміри кімнати з запасом на максимальне віддалення камери: для широких виробів і вузьких
+   * екранів камера відʼїжджає далеко, і вона має лишатися всередині кімнати (під стелею).
    */
-  private fitWorld(dist: number): void {
-    const { floor, back, left, right, ground, sky } = this.world;
+  private worldDims(cfg: Config): { dist: number; halfW: number; depth: number; roomH: number } {
+    const H = cfg.height / 1000;
+    const y0 = cfg.product === 'window' ? 0.9 : 0;
+    const dist = this.fitOf(cfg) * 1.7;
     const halfW = Math.max(8, dist * 1.1);
     const depth = Math.max(8, dist * 1.15);
-    const h = Math.max(6, depth * 0.5);
+    const roomH = Math.max(2.8, y0 + H + 0.55, 0.52 * dist + y0 + H / 2 + 0.3);
+    return { dist, halfW, depth, roomH };
+  }
+
+  private fitWorld(d: { dist: number; halfW: number; depth: number; roomH: number }): void {
+    const { floor, back, left, right, ceiling, ground, sky } = this.world;
+    const { dist, halfW, depth, roomH } = d;
     floor.scale.set(halfW / 8, depth / 8, 1);
     floor.position.set(0, 0, 0.1 + depth / 2);
-    back.scale.set(halfW / 8, h / 6, 1);
-    back.position.set(0, h / 2, 0.1 + depth);
+    back.scale.set(halfW / 8, roomH / 6, 1);
+    back.position.set(0, roomH / 2, 0.1 + depth);
     for (const [wall, x] of [[left, -halfW], [right, halfW]] as const) {
-      wall.scale.set(depth / 8, h / 6, 1);
-      wall.position.set(x, h / 2, 0.1 + depth / 2);
+      wall.scale.set(depth / 8, roomH / 6, 1);
+      wall.position.set(x, roomH / 2, 0.1 + depth / 2);
     }
+    ceiling.scale.set(halfW * 2, depth, 1);
+    ceiling.position.set(0, roomH, depth / 2 - 0.1);
     const k = Math.max(1, dist / 20);
     ground.scale.set(k, k, 1);
     ground.position.set(0, -0.001, -(0.1 + 20 * k));
@@ -790,8 +814,11 @@ export class ConfiguratorScene {
     });
 
     // --- Стіна з отвором (кімната) та фасадна «шкірка» (вулиця)
-    const wallW = Math.max(W + 2.4, 16);
-    const wallTop = Math.max(2.8, y0 + H + 0.55);
+    const room = this.worldDims(cfg);
+    this.builtRoom = { halfW: room.halfW, roomH: room.roomH };
+    const wallW = Math.max(W + 2.4, room.halfW * 2 + 4);
+    const wallTop = room.roomH;
+    const facadeTop = Math.max(Math.max(2.8, y0 + H + 0.55) + 6, room.roomH + 1);
     const wallShape = (top: number, width: number) => {
       const s = new THREE.Shape();
       s.moveTo(-width / 2, -0.4);
@@ -808,20 +835,15 @@ export class ConfiguratorScene {
     wall.receiveShadow = true;
     wall.castShadow = true;
     const facade = new THREE.Mesh(
-      extrude(wallShape(wallTop + 6, wallW + 12), 0.03),
+      extrude(wallShape(facadeTop, wallW + 12), 0.03),
       new THREE.MeshStandardMaterial({ color: '#cdbfa9', roughness: 1 }),
     );
     facade.position.z = -0.125;
     facade.receiveShadow = true;
     facade.castShadow = true;
 
-    // Стеля, щоб над стіною не просвічувало небо
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 8), new THREE.MeshStandardMaterial({ color: '#a9b2c0', roughness: 1 }));
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(0, wallTop, 3.9);
-    ceiling.receiveShadow = true;
-    this.extras.push(wall, facade, ceiling);
-    this.scene.add(wall, facade, ceiling);
+    this.extras.push(wall, facade);
+    this.scene.add(wall, facade);
 
     // --- Підвіконня (кімната) і відлив (вулиця)
     if (def.features.sill && cfg.sill) {
@@ -867,9 +889,7 @@ export class ConfiguratorScene {
     const y0 = cfg.product === 'window' ? 0.9 : 0;
     const side = this.view === 'inside' ? 1 : -1;
     const target = new THREE.Vector3(0, y0 + H / 2, 0);
-    const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const aspect = this.size.w / this.size.h;
-    const fit = Math.max((H * 0.5 * 1.4) / tan, (W * 0.5 * 1.4) / (tan * aspect)) + 0.5;
+    const fit = this.fitOf(cfg);
 
     if (reset || !this.cfg) {
       const dir = new THREE.Vector3(0.34 * side, 0.1, side).normalize();
@@ -883,7 +903,16 @@ export class ConfiguratorScene {
     this.controls.target.copy(target);
     this.controls.minDistance = fit * 0.45;
     this.controls.maxDistance = fit * 1.7;
-    this.fitWorld(this.controls.maxDistance);
+    const room = this.worldDims(cfg);
+    this.fitWorld(room);
+    // Після зміни пропорцій екрана стіна має бути не меншою за кімнату
+    if (room.halfW > this.builtRoom.halfW + 0.01 || room.roomH > this.builtRoom.roomH + 0.01) {
+      this.rebuild(cfg);
+      this.dirty = true;
+    }
+    // Камера не має опускатися під підлогу/землю, коли відʼїжджає далеко
+    const floorCos = THREE.MathUtils.clamp((0.2 - target.y) / this.controls.maxDistance, -1, 1);
+    this.controls.maxPolarAngle = Math.min(1.75, Math.acos(floorCos));
     this.controls.update();
   }
 
