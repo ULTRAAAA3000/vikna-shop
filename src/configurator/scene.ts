@@ -278,7 +278,7 @@ export class ConfiguratorScene {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.75;
-    this.scene.background = new THREE.Color('#223250');
+    this.scene.background = new THREE.Color('#a9cfe9');
 
     this.netMat = new THREE.MeshStandardMaterial({
       map: netTexture(),
@@ -408,7 +408,7 @@ export class ConfiguratorScene {
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(0, -0.001, -20.1);
     const sky = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 48),
+      new THREE.PlaneGeometry(320, 48),
       new THREE.MeshBasicMaterial({ map: skyTexture(), toneMapped: false, fog: false }),
     );
     sky.position.set(0, 8.5, -38);
@@ -958,7 +958,8 @@ export class ConfiguratorScene {
         if (a.isSlide) tx = a.dir * a.travel;
         else ty = (a.hingeLeft ? -1 : 1) * (a.door ? 1.3 : 1.12);
       } else if (this.mode === 'tilt' && a.canTilt) {
-        tt = -0.2;
+        // Провітрювання: нижня петля, верх стулки відхиляється всередину кімнати (+Z, до глядача зсередини)
+        tt = 0.24;
       }
       a.A.rotation.y += (ty - a.A.rotation.y) * k;
       a.A.position.x += (a.baseX + tx - a.A.position.x) * k;
